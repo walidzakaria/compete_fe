@@ -1,0 +1,26 @@
+/* app global css */
+@font-face {
+  font-family: 'Ubuntu-Arabic_R';
+  src: url('src/assets/fonts/Ubuntu Arabic Regular.otf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+body {
+  font-family: 'Ubuntu-Arabic_R', sans-serif;
+}
+
+.font-ar {
+  font-family: 'Ubuntu-Arabic_R', serif;
+}
+
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
