@@ -81,7 +81,7 @@ export const useInfoStore = defineStore('info', {
       try {
         const response = await api.get('/api/questions/process/1/');
         this.session = response.data;
-        console.log('session', this.session);
+        // console.log('session', this.session);
       } catch (error) {
         console.log(error);
       }
@@ -91,6 +91,7 @@ export const useInfoStore = defineStore('info', {
         await api.get('/api/questions/process/lock_process/');
       } catch (error) {
         console.log(error);
+        throw(error);
       }
     },
     async editSession(sessionInfo) {

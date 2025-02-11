@@ -3,37 +3,46 @@
     :style="{ backgroundImage: `url(${backgroundImage})` }" dir="rtl">
     <q-btn-group rounded style="position: absolute; top: 75px; left: 110px;" dir="ltr" v-if="isAdmin">
       <q-btn color="orange" rounded glossy icon="arrow_back_ios_new" @click="addScore('a')" size="lg" />
-      <q-btn icon="change_circle" color="brown" rounded glossy @click="moveBack" size="lg"></q-btn>
+      <q-btn color="green" rounded glossy icon="skip_next" size="lg" @click="moveBack" />
       <q-btn color="orange" rounded glossy icon="arrow_forward_ios" @click="addScore('b')" size="lg" />
     </q-btn-group>
-
+    <q-btn-group rounded style="position: absolute; top: 10px; left: calc(50% - 73px);" dir="ltr" v-if="isAdmin">
+      <q-btn color="red" glossy icon="cancel" @click="answer(false)" size="lg" />
+      <q-btn color="grey-9" glossy icon="group" size="lg" @click="swapTeam" :label="teams[currentTeam]?.name || ''" />
+      <q-btn color="green" glossy icon="check_circle" @click="answer(true)" size="lg" />
+    </q-btn-group>
 
     <div style="align-items: flex-bottom; margin-top: auto; width: 100%;"
       :style="{ 'margin-bottom': currentQuestion && currentQuestion.withChoices ? '30px' : 'auto' }">
-      <div class="text-h2 text-white text-center animate__animated animate__bounceInDown q-mt-md question">
+      <div class="text-h2 text-center animate__animated animate__bounceInDown q-mt-md question"
+        :class="knobValue > 10 ? 'text-white' : 'text-red'">
         {{ currentQuestion?.question }}
         <br />
         <q-knob show-value class="text-white" v-model="knobValue" size="120px" :thickness="0.2" readonly
           style="margin-top: 20px; margin-bottom: -125px;" :color="knobValue > 10 ? 'orange' : 'red'"
-          :max="sessionInfo?.pressure_duration || 60" :min="0" center-color="grey-8" track-color="grey">
+          :max="sessionInfo?.max_duration || 60" :min="0" center-color="grey-8" track-color="grey">
         </q-knob>
       </div>
 
       <div class="row" v-if="currentQuestion && currentQuestion.withChoices">
-        <div class="text-h4 text-white animate__animated animate__bounceInDown q-mt-md answer" @click="selectAnswer(1)"
-          style="animation-delay: 0.3s;" :style="{ 'background-color': selectedChoice === 1 ? 'green' : 'black' }">
+        <div class="text-h4 text-white animate__animated animate__bounceInRight q-mt-md answer" @click="selectAnswer(1)"
+          :class="`blinking-${selectedChoice === 1 ? answerStatus : ''}`" style="animation-delay: 0.3s;"
+          :style="{ 'background-color': selectedChoice === 1 ? 'green' : 'black' }">
           <span class="answer-number">1. </span> {{ currentQuestion.choices_a }}
         </div>
-        <div class="text-h4 text-white animate__animated animate__bounceInDown q-mt-md answer" @click="selectAnswer(2)"
-          style="animation-delay: 0.6s;" :style="{ 'background-color': selectedChoice === 2 ? 'green' : 'black' }">
+        <div class="text-h4 text-white animate__animated animate__bounceInLeft q-mt-md answer" @click="selectAnswer(2)"
+          :class="`blinking-${selectedChoice === 2 ? answerStatus : ''}`" style="animation-delay: 0.6s;"
+          :style="{ 'background-color': selectedChoice === 2 ? 'green' : 'black' }">
           <span class="answer-number">2. </span> {{ currentQuestion.choices_b }}
         </div>
-        <div class="text-h4 text-white animate__animated animate__bounceInDown q-mt-md answer" @click="selectAnswer(3)"
-          style="animation-delay: 0.9s;" :style="{ 'background-color': selectedChoice === 3 ? 'green' : 'black' }">
+        <div class="text-h4 text-white animate__animated animate__bounceInRight q-mt-md answer" @click="selectAnswer(3)"
+          :class="`blinking-${selectedChoice === 3 ? answerStatus : ''}`" style="animation-delay: 0.9s;"
+          :style="{ 'background-color': selectedChoice === 3 ? 'green' : 'black' }">
           <span class="answer-number">3. </span> {{ currentQuestion.choices_c }}
         </div>
-        <div class="text-h4 text-white animate__animated animate__bounceInDown q-mt-md answer" @click="selectAnswer(4)"
-          style="animation-delay: 1.2s;" :style="{ 'background-color': selectedChoice === 4 ? 'green' : 'black' }">
+        <div class="text-h4 text-white animate__animated animate__bounceInLeft q-mt-md answer" @click="selectAnswer(4)"
+          :class="`blinking-${selectedChoice === 4 ? answerStatus : ''}`" style="animation-delay: 1.2s;"
+          :style="{ 'background-color': selectedChoice === 4 ? 'green' : 'black' }">
           <span class="answer-number">4. </span> {{ currentQuestion.choices_d }}
         </div>
       </div>
@@ -51,32 +60,40 @@ import 'vue-fortune-wheel/style.css';
 import { useInterval } from 'quasar';
 import { useInfoStore } from 'src/stores/info-store';
 import { useAuthStore } from 'src/stores/auth-store';
+import backgroundImage from '../assets/background.jpg';
 
+// Stores and utilities
 const { registerInterval } = useInterval();
 const infoStore = useInfoStore();
 const authStore = useAuthStore();
-import backgroundImage from '../assets/background.jpg'; // Import the image
 
-
-const isAdmin = computed(() => authStore.$state.userInfo.is_superuser);
-
-
-onMounted(() => {
-  registerInterval(() => {
-    knobValue.value = getSeconds();
-  }, 1000) // every 1 second
-})
-
-onUnmounted(() => {
-  registerInterval(null) // Clear the interval
-})
-
-
+// Refs
 const knobValue = ref(0);
+const answerStatus = ref('');
 
-const selectedChoice = computed(() => sessionInfo.value.selected_answer);
+const audioTrack = {
+  intro: '/audio/intro.mp3',
+  question: '/audio/question.mp3',
+  timer: '/audio/timer.mp3',
+  celebrate: '/audio/celebrate.mp3',
+  wrong: '/audio/wrong.mp3',
+  correct: '/audio/correct.mp3',
+  heartbeats: '/audio/heartbeats.mp3',
+};
 
+const audio = ref({
+  audio: new Audio(),
+  isPlaying: false,
+  currentTrack: null,
+});
+
+
+// Computed properties
+const isAdmin = computed(() => authStore.$state.userInfo.is_superuser);
 const sessionInfo = computed(() => infoStore.getSession);
+const selectedChoice = computed(() => sessionInfo.value.selected_answer);
+const userLocked = computed(() => infoStore.getUserLocked);
+const teams = computed(() => infoStore.getTeams);
 
 const currentQuestion = computed(() => ({
   id: sessionInfo.value.question_index,
@@ -91,28 +108,43 @@ const currentQuestion = computed(() => ({
 }));
 
 
+const currentTeam = ref('a');
+
+
+// Methods
+
+const playTrack = (track) => {
+  if (!isAdmin.value) return;
+  if (audio.value.currentTrack === track && audio.value.isPlaying) return;
+  if (audio.value.audio) audio.value.audio.pause();
+  audio.value.audio = new Audio(track);
+  audio.value.audio.play();
+  audio.value.currentTrack = track;
+  audio.value.isPlaying = true;
+
+  audio.value.audio.onended = () => {
+    audio.value.isPlaying = false;
+  };
+};
+
+const stopTrack = () => {
+  if (audio.value.isPlaying) {
+    audio.value.audio.pause();
+    audio.value.isPlaying = false;
+  }
+};
+
 const addScore = async (teamLetter) => {
-  const info = {};
-  info[`team_${teamLetter}_result`] = infoStore.getSession[`team_${teamLetter}_result`] + 1;
-  infoStore.editSession(info);
-}
+  const teamScoreKey = `team_${teamLetter}_result`;
+  const newScore = infoStore.getSession[teamScoreKey] + 1;
+  const info = { [teamScoreKey]: newScore };
+  await infoStore.editSession(info);
+};
 
 const getSeconds = () => {
   const startTime = new Date(infoStore.getSession.time_started);
-  startTime.setSeconds(startTime.getSeconds() + (sessionInfo.value?.pressure_duration || 0) + 2);
-  const differenceInSeconds = Math.floor((startTime - new Date()) / 1000);
-
-  return differenceInSeconds;
-};
-
-const selectAnswer = async (answerNo) => {
-  if (!isAdmin.value) return;
-  const info = {
-    user_locked: null,
-    selected_answer: sessionInfo.value.selected_answer === answerNo ? -1 : answerNo,
-  };
-
-  await infoStore.editSession(info);
+  startTime.setSeconds(startTime.getSeconds() + (currentQuestion.value?.duration || 0) + 1);
+  return Math.floor((startTime - new Date()) / 1000);
 };
 
 const moveBack = async () => {
@@ -133,6 +165,73 @@ const moveBack = async () => {
   };
   infoStore.editSession(info);
 }
+
+const selectAnswer = async (answerNo) => {
+  if (!isAdmin.value) return;
+  const info = {
+    selected_answer: sessionInfo.value.selected_answer === answerNo ? -1 : answerNo,
+  };
+  if (sessionInfo.value.selected_answer > -1) {
+    stopTrack();
+    console.log('play heartbeats');
+    playTrack(audioTrack.heartbeats);
+    await pauseTimer();
+  }
+  await infoStore.editSession(info);
+};
+
+const pauseTimer = async () => {
+  const info = { paused: true, time_left: knobValue.value };
+  await infoStore.editSession(info);
+  await infoStore.retrieveSession();
+}
+
+const resumeTimer = async () => {
+  const info = { time_started: new Date().toISOString(), user_locked: null, duration: knobValue.value, paused: false, time_left: null };
+  console.log('resume timer', info);
+  await infoStore.editSession(info);
+  await infoStore.retrieveSession();
+}
+
+const answer = async (answerValue) => {
+  if (answerValue) {
+    answerStatus.value = 'correct';
+    await pauseTimer();
+    await addScore(currentTeam.value);
+    playTrack(audioTrack.correct);
+  } else {
+    answerStatus.value = 'wrong';
+    playTrack(audioTrack.wrong);
+    await resumeTimer();
+  }
+};
+// Lifecycle hooks
+onMounted(() => {
+  registerInterval(() => {
+
+    knobValue.value = sessionInfo.value.paused ? sessionInfo.value.time_left : knobValue.value = getSeconds();
+    if (answerStatus.value !== '') return;
+    if (userLocked.value && sessionInfo.value.selected_answer === -1) {
+      stopTrack();
+    } else if (sessionInfo.value.selected_answer > -1) {
+      playTrack(audioTrack.heartbeats);
+    } else if (knobValue.value <= 10) {
+      playTrack(audioTrack.timer);
+    } else {
+      playTrack(audioTrack.question);
+    }
+  }, 1000);
+});
+
+const swapTeam = () => {
+  currentTeam.value = currentTeam.value === 'a' ? 'b' : 'a';
+};
+
+onUnmounted(() => {
+  registerInterval(null);
+});
+
+
 
 </script>
 
@@ -175,5 +274,57 @@ const moveBack = async () => {
   position: absolute;
   display: inline-block;
   color: white;
+}
+
+@keyframes blinkWrong {
+  0% {
+    background-color: red;
+  }
+
+  25% {
+    background-color: black;
+  }
+
+  50% {
+    background-color: red;
+  }
+
+  75% {
+    background-color: black;
+  }
+
+  100% {
+    background-color: red;
+  }
+}
+
+@keyframes blinkCorrect {
+  0% {
+    background-color: green;
+  }
+
+  25% {
+    background-color: black;
+  }
+
+  50% {
+    background-color: green;
+  }
+
+  75% {
+    background-color: black;
+  }
+
+  100% {
+    background-color: green;
+  }
+}
+
+.blinking-wrong {
+  animation: blinkWrong 1s steps(2, start) 2 alternate;
+}
+
+.blinking-correct {
+  animation: blinkCorrect 1s steps(2, start) 2 alternate;
 }
 </style>

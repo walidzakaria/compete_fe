@@ -81,7 +81,8 @@
 
     <div style="align-items: flex-bottom; margin-top: auto; width: 100%;"
       :style="{ 'margin-bottom': currentQuestion && currentQuestion.withChoices ? '30px' : 'auto' }">
-      <div class="text-h2 text-white text-center animate__animated animate__bounceInDown q-mt-md question">
+      <div class="text-h2 text-white text-center animate__animated animate__bounceInDown q-mt-md question"
+        :class="knobValue > 10 ? 'text-white' : 'text-red'">
         {{ currentQuestion?.question }}
         <br />
         <q-knob show-value class="text-white" v-model="knobValue" size="120px" :thickness="0.2" readonly
@@ -91,19 +92,19 @@
       </div>
 
       <div class="row" v-if="currentQuestion && currentQuestion.withChoices">
-        <div class="text-h4 text-white animate__animated animate__bounceInDown q-mt-md answer" @click="selectAnswer(1)"
+        <div class="text-h4 text-white animate__animated animate__bounceInRight q-mt-md answer" @click="selectAnswer(1)"
           style="animation-delay: 0.3s;" :style="{ 'background-color': selectedChoice === 1 ? 'green' : 'black' }">
           <span class="answer-number">1. </span> {{ currentQuestion.choices_a }}
         </div>
-        <div class="text-h4 text-white animate__animated animate__bounceInDown q-mt-md answer" @click="selectAnswer(2)"
+        <div class="text-h4 text-white animate__animated animate__bounceInLeft q-mt-md answer" @click="selectAnswer(2)"
           style="animation-delay: 0.6s;" :style="{ 'background-color': selectedChoice === 2 ? 'green' : 'black' }">
           <span class="answer-number">2. </span> {{ currentQuestion.choices_b }}
         </div>
-        <div class="text-h4 text-white animate__animated animate__bounceInDown q-mt-md answer" @click="selectAnswer(3)"
+        <div class="text-h4 text-white animate__animated animate__bounceInRight q-mt-md answer" @click="selectAnswer(3)"
           style="animation-delay: 0.9s;" :style="{ 'background-color': selectedChoice === 3 ? 'green' : 'black' }">
           <span class="answer-number">3. </span> {{ currentQuestion.choices_c }}
         </div>
-        <div class="text-h4 text-white animate__animated animate__bounceInDown q-mt-md answer" @click="selectAnswer(4)"
+        <div class="text-h4 text-white animate__animated animate__bounceInLeft q-mt-md answer" @click="selectAnswer(4)"
           style="animation-delay: 1.2s;" :style="{ 'background-color': selectedChoice === 4 ? 'green' : 'black' }">
           <span class="answer-number">4. </span> {{ currentQuestion.choices_d }}
         </div>
@@ -145,9 +146,38 @@ const changeTeam = async () => {
   await infoStore.editSession(info);
 };
 
+const stopTrack = () => {
+  if (audio.value.isPlaying) {
+    audio.value.audio.pause();
+    audio.value.isPlaying = false;
+  }
+};
+
+const playTrack = (track) => {
+  if (!isAdmin.value) return;
+  if (audio.value.currentTrack === track && audio.value.isPlaying) return;
+  if (audio.value.audio) audio.value.audio.pause();
+  audio.value.audio = new Audio(track);
+  audio.value.audio.play();
+  audio.value.currentTrack = track;
+  audio.value.isPlaying = true;
+
+  audio.value.audio.onended = () => {
+    audio.value.isPlaying = false;
+  };
+};
+
+
 onMounted(() => {
   registerInterval(() => {
     knobValue.value = getSeconds();
+    if (knobValue.value === 0) {
+      stopTrack();
+    } else if (knobValue.value <= 10) {
+      playTrack(audioTrack.timer);
+    } else {
+      playTrack(audioTrack.question);
+    }
   }, 1000) // every 1 second
 })
 
@@ -165,14 +195,32 @@ const selectedChoice = computed(() => sessionInfo.value.selected_answer);
 
 const sessionInfo = computed(() => infoStore.getSession);
 
-const currentQuestion = computed(() => {
-  const selectedQuestions = infoStore.pressureQuestions;
-  const currentQuestion = selectedQuestions[sessionInfo.value.question_index || 0];
-  if (currentQuestion) {
-    currentQuestion['withChoices'] = currentQuestion.choices_a?.length > 0;
-    return currentQuestion;
-  }
-  return null;
+const currentQuestion = computed(() => ({
+  id: sessionInfo.value.question_index,
+  question: sessionInfo.value.question,
+  choices_a: sessionInfo.value.choices_a,
+  choices_b: sessionInfo.value.choices_b,
+  choices_c: sessionInfo.value.choices_c,
+  choices_d: sessionInfo.value.choices_d,
+  answer: sessionInfo.value.answer,
+  duration: sessionInfo.value.duration,
+  withChoices: sessionInfo.value.choices_a?.length > 0,
+}));
+
+const audioTrack = {
+  intro: '/audio/intro.mp3',
+  question: '/audio/question.mp3',
+  timer: '/audio/timer.mp3',
+  celebrate: '/audio/celebrate.mp3',
+  wrong: '/audio/wrong.mp3',
+  correct: '/audio/correct.mp3',
+  heartbeats: '/audio/heartbeats.mp3',
+};
+
+const audio = ref({
+  audio: new Audio(),
+  isPlaying: false,
+  currentTrack: null,
 });
 
 
@@ -190,19 +238,39 @@ const getSeconds = () => {
   return differenceInSeconds;
 };
 
+
 const moveNext = async () => {
-  const questionUpdate = {
-    id: currentQuestion.value?.id || 0,
-    used: true,
-    type: 'pressure',
-  };
-  await infoStore.editQuestion(questionUpdate);
+  if (currentQuestion.value?.id > 0) {
+    await markQuestionAsUsed();
+  }
+
+  questionIndex.value++;
+  const newQuestion = infoStore.getPressureQuestions[questionIndex.value - 1];
   const info = {
-    question_index: infoStore.getSession.question_index + 1,
+    question_index: newQuestion.id,
+    question: newQuestion.question,
+
+    choices_a: newQuestion.choices_a,
+    choices_b: newQuestion.choices_b,
+    choices_c: newQuestion.choices_c,
+    choices_d: newQuestion.choices_d,
+    answer: newQuestion.answer,
+    duration: newQuestion.duration,
+    max_duration: newQuestion.duration,
     selected_answer: -1,
     user_locked: null,
+    paused: false,
   };
+
   await infoStore.editSession(info);
+};
+
+const markQuestionAsUsed = async () => {
+  await infoStore.editQuestion({
+    id: currentQuestion.value.id,
+    used: true,
+    type: 'pressure',
+  });
 };
 
 const selectAnswer = async (answerNo) => {
@@ -234,9 +302,8 @@ const arrNum = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh
 const answerQuestion = async (correctAnswer) => {
   if (!isAdmin.value || questionIndex.value > 10) return;
   if (correctAnswer) await addScore(sessionInfo.value.current_team);
-  moveNext();
   result.value[arrNum[questionIndex.value - 1]] = correctAnswer;
-  questionIndex.value++;
+  moveNext();
 }
 </script>
 

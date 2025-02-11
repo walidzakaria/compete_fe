@@ -1,7 +1,7 @@
 <template>
   <div style="text-align: center;">
     <!-- type: canvas -->
-    <FortuneWheel ref="wheelEl" style="width: 500px; max-width: 100%; margin: 20px auto;" v-if="prizesCanvas.length > 0"
+    <FortuneWheel ref="wheelEl" style="width: 500px; max-width: 100%; margin: 20px auto;" v-if="prizesCanvas.length > 0 && isAdmin"
       class="animate__animated animate__shakeX" :verify="canvasVerify" :canvas="canvasOptions" :prizes="prizesCanvas"
       @rotateStart="onCanvasRotateStart" @rotateEnd="onRotateEnd" />
 
@@ -20,10 +20,13 @@ import { useQuasar } from 'quasar';
 import FortuneWheel from 'vue-fortune-wheel';
 import 'vue-fortune-wheel/style.css';
 import { useInfoStore } from 'src/stores/info-store';
+import { useAuthStore } from 'src/stores/auth-store';
 
 const infoStore = useInfoStore();
+const authStore = useAuthStore();
 const $q = useQuasar();
 
+const isAdmin = computed(() => authStore.$state.userInfo.is_superuser);
 
 const visible = ref(false);
 const prizeId = ref(0)

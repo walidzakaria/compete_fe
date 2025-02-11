@@ -10,6 +10,9 @@
       <router-view />
     </q-page-container>
     <q-btn-group rounded style="display: block; position: fixed; bottom: 10px;" v-if="isAdmin">
+      <q-btn rounded glossy color="purple" :icon="$q.fullscreen.isActive ? 'fullscreen_exit' : 'fullscreen'"
+        @click="$q.fullscreen.toggle()" v-if="$q.screen.gt.sm">
+      </q-btn>
       <q-btn color="green" rounded glossy icon="home" label="الرئيسية" @click="navigateTo('')" />
       <q-btn color="orange" rounded glossy icon="group" label="الفرق" @click="navigateTo('teams')" />
       <q-btn-dropdown rounded glossy color="primary" label="الفقرة">
@@ -63,6 +66,9 @@
       <q-btn color="brown" rounded glossy icon-right="help" label="الأسئلة" @click="navigateTo('question')" />
       <q-btn color="red" rounded glossy icon-right="scoreboard" label="النتيجة" @click="navigateTo('result')" />
     </q-btn-group>
+    <q-btn rounded glossy color="purple" :icon="$q.fullscreen.isActive ? 'fullscreen_exit' : 'fullscreen'"
+      @click="$q.fullscreen.toggle()" v-else>
+    </q-btn>
   </q-layout>
 </template>
 
